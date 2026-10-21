@@ -1,0 +1,29 @@
+{
+  "name": "treasure-hunt-builder",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "typecheck": "tsc -p . --noEmit && tsc -p worker --noEmit",
+    "test": "vitest run",
+    "db:local": "wrangler d1 migrations apply treasure-hunt --local",
+    "db:remote": "wrangler d1 migrations apply treasure-hunt --remote",
+    "serve:local": "npm run build && wrangler dev",
+    "smoke": "node scripts/api-smoke.mjs",
+    "deploy": "npm run build && wrangler deploy"
+  },
+  "dependencies": {
+    "fflate": "^0.8.3",
+    "preact": "^11.0.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261021.1",
+    "@preact/preset-vite": "^2.10.6",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5",
+    "vitest": "^5.0.5",
+    "wrangler": "^4.151.3"
+  }
+}

@@ -1,0 +1,26 @@
+name = "treasure-hunt-builder"
+main = "worker/index.ts"
+compatibility_date = "2026-10-01"
+
+# קבצי האתר (נבנים ל-dist). רק בקשות /api עוברות דרך ה-Worker.
+[assets]
+directory = "./dist"
+binding = "ASSETS"
+not_found_handling = "single-page-application"
+run_worker_first = ["/api/*"]
+
+[vars]
+# מתג חירום: "true" משבית יצירה ועדכון של משחקים (קריאה והרצת משחקים קיימים ממשיכות לעבוד).
+PUBLISH_DISABLED = "false"
+
+# לפני הפריסה: הריצו `wrangler d1 create treasure-hunt` והדביקו את ה-database_id שהתקבל.
+[[d1_databases]]
+binding = "DB"
+database_name = "treasure-hunt"
+database_id = "REPLACE_WITH_D1_DATABASE_ID"
+migrations_dir = "migrations"
+
+# לפני הפריסה: `wrangler r2 bucket create treasure-hunt-images`
+[[r2_buckets]]
+binding = "IMAGES"
+bucket_name = "treasure-hunt-images"

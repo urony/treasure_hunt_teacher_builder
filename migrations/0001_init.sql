@@ -1,0 +1,14 @@
+CREATE TABLE IF NOT EXISTS games (
+  id TEXT PRIMARY KEY,
+  version INTEGER NOT NULL,
+  data TEXT NOT NULL,
+  token_hash TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS rate_limits (
+  key TEXT PRIMARY KEY,
+  count INTEGER NOT NULL,
+  window_start INTEGER NOT NULL
+);
