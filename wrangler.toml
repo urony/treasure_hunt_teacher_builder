@@ -17,7 +17,7 @@ PUBLISH_DISABLED = "false"
 [[d1_databases]]
 binding = "DB"
 database_name = "treasure-hunt"
-database_id = "REPLACE_WITH_D1_DATABASE_ID"
+database_id = "8fa82c51-8fde-4d2c-8c6f-e56feff72ce5"
 migrations_dir = "migrations"
 
 # לפני הפריסה: `wrangler r2 bucket create treasure-hunt-images`
