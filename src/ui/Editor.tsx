@@ -110,6 +110,15 @@ export function Editor({ remoteId }: { remoteId?: string }) {
     })();
   }, [remoteId]);
 
+  // התחנה הראשונה נפתחת מיד כשהעורך נטען
+  const opened = useRef(false);
+  useEffect(() => {
+    if (status.kind === 'ready' && game && !opened.current) {
+      opened.current = true;
+      setOpenId(game.stations[0]?.id);
+    }
+  }, [status.kind, game]);
+
   /* שמירה אוטומטית של הטיוטה */
   const dirty = useRef(false);
   const persist = (g: Game, ed: Editing | undefined) => {
@@ -424,25 +433,31 @@ export function Editor({ remoteId }: { remoteId?: string }) {
         </div>
       )}
 
-      <section class="card actions">
+      <div class="action-bar">
         <button class="btn secondary" onClick={onPreview}>
           👁 תצוגה מקדימה
         </button>
         <button class="btn primary" disabled={!!busy} onClick={onPublish}>
           {busy ?? (editing ? 'שמור שינויים' : 'פרסם משחק')}
         </button>
-        <button class="btn secondary" onClick={onSaveFile}>
-          💾 שמור משחק לשימוש חוזר
-        </button>
-        <button class="btn secondary" onClick={() => importRef.current?.click()}>
-          📂 פתח משחק ששמרתי
-        </button>
-        <input ref={importRef} type="file" accept=".zip,application/zip" hidden onChange={(e) => (onImport(e.currentTarget.files?.[0]), (e.currentTarget.value = ''))} />
-        {editing && (
-          <button class="btn danger" onClick={() => setConfirmDelete(true)}>
-            מחיקת המשחק מהאתר
+      </div>
+
+      <section class="card tools">
+        <h3>עוד אפשרויות</h3>
+        <div class="row">
+          <button class="btn secondary" onClick={onSaveFile}>
+            💾 שמור משחק לשימוש חוזר
           </button>
-        )}
+          <button class="btn secondary" onClick={() => importRef.current?.click()}>
+            📂 פתח משחק ששמרתי
+          </button>
+          {editing && (
+            <button class="btn danger" onClick={() => setConfirmDelete(true)}>
+              מחיקת המשחק מהאתר
+            </button>
+          )}
+        </div>
+        <input ref={importRef} type="file" accept=".zip,application/zip" hidden onChange={(e) => (onImport(e.currentTarget.files?.[0]), (e.currentTarget.value = ''))} />
       </section>
       <p class="hint">הטיוטה נשמרת אוטומטית במחשב הזה.</p>
 
@@ -523,7 +538,7 @@ function StationCard({ station: s, index, total, open, onToggle, onChange, onMov
         <button class="station-title" onClick={onToggle} aria-expanded={open}>
           <span class="num">{index + 1}</span>
           <span>{s.name.trim() || 'תחנה חדשה'}</span>
-          <span aria-hidden="true">{open ? '▲' : '▼'}</span>
+          <span class="toggle-word">{open ? 'סגור' : 'פתח'}</span>
         </button>
         <div class="row small-row">
           <button class="btn icon" aria-label="הזזה למעלה" disabled={index === 0} onClick={() => onMove(-1)}>↑</button>

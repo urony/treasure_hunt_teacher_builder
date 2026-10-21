@@ -3,8 +3,8 @@ import { fetchGame, fetchImage } from '../lib/api';
 import { describeStorageError, requestPersistence } from '../lib/idb';
 import { uid, safeFileName } from '../lib/ids';
 import { compressImage } from '../lib/image';
-import { buildReport, packageReport, PackagedReport } from '../lib/report';
-import { canShareFile, downloadBlob, looksLikeInAppBrowser, shareFile } from '../lib/share';
+import { buildReport, reportFiles, ReportFile } from '../lib/report';
+import { canShareFiles, downloadFiles, looksLikeInAppBrowser, shareFiles } from '../lib/share';
 import { OUTCOME_TEXT, stationOutcome } from '../lib/status';
 import {
   BlobRec,
@@ -165,7 +165,8 @@ export function PlayRoute({ gameId }: { gameId: string }) {
     const ok = name.trim().length > 0;
     return (
       <main class="page">
-        <h1>{stage.title}</h1>
+        <div class="hero" aria-hidden="true">🗺️</div>
+        <h1 class="center-text">{stage.title}</h1>
         <InAppTip />
         <form
           class="card"
@@ -287,7 +288,7 @@ export function PlayGame({ game, initial, store, imageKey, preview, onClear }: P
   const header = (
     <header class="topbar">
       <div>
-        <strong>{game.title}</strong>
+        <strong>🧭 {game.title}</strong>
         <span class="who">{p.studentName}</span>
       </div>
     </header>
@@ -305,7 +306,7 @@ export function PlayGame({ game, initial, store, imageKey, preview, onClear }: P
             {game.intro.link && <ExternalLink href={game.intro.link}>פתיחת הקישור</ExternalLink>}
           </div>
           <button class="btn primary big" onClick={begin}>
-            התחל
+            התחל את ההרפתקה 🚀
           </button>
         </main>
       </div>
@@ -339,10 +340,16 @@ export function PlayGame({ game, initial, store, imageKey, preview, onClear }: P
           })}
         </nav>
       )}
+      {!needsStart && (
+        <div class="progress" role="progressbar" aria-valuemin={0} aria-valuemax={N} aria-valuenow={p.visited.length} aria-label="התקדמות">
+          <div class="progress-fill" style={{ width: `${Math.round((p.visited.length / N) * 100)}%` }} />
+          <span>ביקרתם ב-{p.visited.length} מתוך {N}</span>
+        </div>
+      )}
       <main class="page" ref={mainRef}>
         {needsStart ? (
           <div class="card">
-            <h2>מאיזו תחנה מתחילים?</h2>
+            <h2>📍 מאיזו תחנה מתחילים?</h2>
             <p class="hint">בחרו את תחנת ההתחלה לפי הנחיית המורה.</p>
             <div class="stack">
               {game.stations.map((s, i) => (
@@ -453,9 +460,9 @@ function StationView(props: StationViewProps) {
         {st.link && <ExternalLink href={st.link}>פתיחת הקישור</ExternalLink>}
       </div>
 
-      {st.code && <CodeBox station={st} solved={solved} onSolved={() => update((q) => ({ ...q, solved: [...new Set([...q.solved, st.id])] }))} />}
-
       <SubmitArea {...props} />
+
+      {st.code && <CodeBox station={st} solved={solved} onSolved={() => update((q) => ({ ...q, solved: [...new Set([...q.solved, st.id])] }))} />}
 
       {out !== 'notRequired' && (
         <p class={`status ${out}`}>{out === 'full' ? 'הוגש ✓' : out === 'partial' ? 'הוגש חלקית — אפשר להשלים' : 'עדיין לא הוגש תוצר (אפשר להמשיך גם כך)'}</p>
@@ -777,7 +784,7 @@ function AudioInput({ store, audioKey, onSave, onRemove }: { store: PlayStore; a
 
 function FinishView({ game, progress, store, preview, onBack, onClear }: { game: Game; progress: Progress; store: PlayStore; preview?: boolean; onBack: () => void; onClear?: () => void }) {
   const [msg, setMsg] = useState<string>();
-  const [result, setResult] = useState<PackagedReport>();
+  const [result, setResult] = useState<ReportFile[]>();
   const [err, setErr] = useState<string>();
   const [saved, setSaved] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -791,9 +798,9 @@ function FinishView({ game, progress, store, preview, onBack, onClear }: { game:
       setMsg('מכינים את הדוח…');
       const r = await buildReport({ game, progress, getBlob: store.getBlob, onProgress: setMsg });
       const base = `דוח ${safeFileName(game.title, 'משחק')} - ${safeFileName(progress.studentName, 'תלמיד')}`;
-      const packaged = await packageReport(r, base);
-      setResult(packaged);
-      setCanShare(canShareFile(packaged.blob, packaged.fileName, packaged.mime));
+      const files = reportFiles(r, base);
+      setResult(files);
+      setCanShare(canShareFiles(files));
     } catch (e) {
       console.error(e);
       setErr('לא הצלחנו להפיק את הדוח (ייתכן שאין מספיק זיכרון בטלפון). נסו לסגור לשוניות אחרות ולהפיק שוב.');
@@ -806,7 +813,8 @@ function FinishView({ game, progress, store, preview, onBack, onClear }: { game:
 
   return (
     <main class="page">
-      <h1>סיימתם!</h1>
+      <div class="hero trophy" aria-hidden="true">🏆</div>
+      <h1 class="center-text">סיימתם!</h1>
       <p>
         {progress.studentName} · ביקרתם ב-{visitedCount} מתוך {game.stations.length} תחנות
       </p>
@@ -823,35 +831,37 @@ function FinishView({ game, progress, store, preview, onBack, onClear }: { game:
         {result && (
           <div class="stack">
             <p class="banner ok">
-              הדוח מוכן ({result.isZip ? 'קובץ ZIP עם PDF והקלטות' : 'קובץ PDF'}, {(result.blob.size / 1024 / 1024).toFixed(1)}MB)
+              הדוח מוכן: קובץ PDF{result.length > 1 ? ` ו-${result.length - 1} הקלטות` : ''} ({(result.reduce((n, f) => n + f.blob.size, 0) / 1024 / 1024).toFixed(1)}MB)
             </p>
-            <button
-              class="btn primary big"
-              onClick={() => {
-                downloadBlob(result.blob, result.fileName);
-                setSaved(true);
-              }}
-            >
-              ⬇ שמירה במכשיר
-            </button>
             {canShare && (
               <button
-                class="btn secondary big"
+                class="btn primary big"
                 onClick={async () => {
+                  setErr(undefined);
                   try {
-                    if (await shareFile(result.blob, result.fileName, result.mime, game.title)) setSaved(true);
-                  } catch {
-                    setErr('השיתוף לא הצליח. אפשר לשמור את הקובץ במכשיר ולשלוח אותו ידנית.');
+                    if (await shareFiles(result, game.title)) setSaved(true);
+                  } catch (e) {
+                    setErr(`השיתוף לא הצליח (${(e as Error).name}). אפשר לשמור את הקבצים במכשיר ולשלוח אותם ידנית.`);
                   }
                 }}
               >
                 ↗ שיתוף
               </button>
             )}
+            <button
+              class={`btn big ${canShare ? 'secondary' : 'primary'}`}
+              onClick={async () => {
+                await downloadFiles(result);
+                setSaved(true);
+              }}
+            >
+              ⬇ שמירה במכשיר
+            </button>
             <p class="hint">
               {canShare
-                ? 'אפשר לשתף ישירות (למשל לוואטסאפ) או לשמור ולשלוח אחר כך.'
-                : 'הדפדפן הזה לא תומך בשיתוף קבצים. שמרו את הקובץ, ואז שלחו אותו למורה בוואטסאפ כמסמך (סמל המהדק ← מסמך) או במייל.'}{' '}
+                ? 'אפשר לשתף ישירות (למשל לוואטסאפ) את הדוח וההקלטות, או לשמור ולשלוח אחר כך.'
+                : 'הדפדפן הזה לא תומך בשיתוף קבצים. שמרו את הקבצים, ואז שלחו אותם למורה בוואטסאפ כמסמך (סמל המהדק ← מסמך) או במייל.'}{' '}
+              {result.length > 1 && 'בשמירה ייתכן שהדפדפן ישאל אם לאפשר הורדת כמה קבצים — אשרו. '}
               אם ההורדה לא מתחילה, פתחו את הקישור ב-Chrome או ב-Safari.
             </p>
           </div>

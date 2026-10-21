@@ -1,8 +1,8 @@
 import { useRef, useState } from 'preact/hooks';
 import { idbDel, idbGet, idbPut, requestPersistence } from '../lib/idb';
 import { compressImage } from '../lib/image';
-import { buildReport, packageReport } from '../lib/report';
-import { canShareFile, downloadBlob, looksLikeInAppBrowser, shareFile } from '../lib/share';
+import { buildReport, reportFiles } from '../lib/report';
+import { canShareFiles, downloadFiles, looksLikeInAppBrowser, OutFile, shareFiles } from '../lib/share';
 import { BlobRec } from '../lib/storage';
 import { Game } from '../shared/types';
 
@@ -36,7 +36,7 @@ export function Spike() {
   const [log, setLog] = useState('');
   const [previewUrl, setPreviewUrl] = useState<string>();
   const photoRef = useRef<HTMLInputElement>(null);
-  const lastPackaged = useRef<Awaited<ReturnType<typeof packageReport>> | undefined>(undefined);
+  const lastFiles = useRef<OutFile[] | undefined>(undefined);
 
   const add = (r: Result) => setResults((x) => [...x.filter((y) => y.name !== r.name), r]);
 
@@ -84,7 +84,8 @@ export function Spike() {
       const bytes = new Uint8Array(await r.pdf.arrayBuffer());
       const head = new TextDecoder().decode(bytes.slice(0, 8));
       add({ name: 'PDF עברי: נוצר', ok: head.startsWith('%PDF-'), detail: `${r.pages} עמוד, ${(r.pdf.size / 1024) | 0}KB. ⚠ קריאות העברית דורשת בדיקה ויזואלית — לחצו "הורד PDF" ופתחו.` });
-      lastPackaged.current = await packageReport(r, 'spike-hebrew');
+      // PDF + קובץ שמע לדוגמה: בודק שיתוף של כמה קבצים בלחיצה אחת (כמו בדוח אמיתי עם הקלטה)
+      lastFiles.current = [...reportFiles(r, 'spike-hebrew'), { name: 'spike-audio.m4a', blob: new Blob([new Uint8Array(20000)], { type: 'audio/mp4' }), mime: 'audio/mp4' }];
       if (r.firstPage) setPreviewUrl(URL.createObjectURL(new Blob([r.firstPage as BlobPart], { type: 'image/jpeg' })));
     } catch (e) {
       add({ name: 'PDF עברי', ok: false, detail: String(e) });
@@ -130,19 +131,10 @@ export function Spike() {
       add({ name: 'PDF ארוך', ok: false, detail: String(e) });
     }
 
-    // ZIP
-    try {
-      const pdf = new Blob([new Uint8Array(1000)], { type: 'application/pdf' });
-      const z = await packageReport({ pdf, pages: 1, audio: [{ name: 'station-01.m4a', blob: new Blob([new Uint8Array(5000)]) }] }, 'zip-test');
-      add({ name: 'ZIP: PDF + הקלטה', ok: z.isZip && z.blob.size > 6000, detail: `${z.blob.size} בייט` });
-    } catch (e) {
-      add({ name: 'ZIP', ok: false, detail: String(e) });
-    }
-
     // יכולות דפדפן
     add({ name: 'MediaRecorder', ok: typeof MediaRecorder !== 'undefined', detail: typeof MediaRecorder !== 'undefined' ? ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'].map((m) => `${m}:${MediaRecorder.isTypeSupported(m)}`).join(' ') : 'לא קיים' });
     const f = new File([new Blob(['x'])], 'x.pdf', { type: 'application/pdf' });
-    add({ name: 'Web Share עם קבצים (canShare)', ok: null, detail: String(navigator.canShare?.({ files: [f] }) ?? 'לא נתמך') + ' (לא נתמך = fallback להורדה, תקין)' });
+    add({ name: 'Web Share עם קבצים (canShare)', ok: null, detail: `PDF: ${String(navigator.canShare?.({ files: [f] }) ?? 'לא נתמך')}; PDF+שמע: ${String(lastFiles.current ? canShareFiles(lastFiles.current) : 'לא נבדק')} (לא נתמך = fallback להורדה, תקין)` });
 
     for (const name of ['צילום מהמצלמה (לחיצה על "בדוק צילום")', 'הקלטה בפועל (לחיצה על "בדוק הקלטה")', 'הורדת PDF (לחיצה על "הורד PDF")', 'שיתוף בפועל (לחיצה על "בדוק שיתוף")', 'פתיחה מקישור בוואטסאפ']) {
       add({ name, ok: null, detail: 'לא נבדק — דורש פעולה ידנית במכשיר' });
@@ -207,11 +199,11 @@ export function Spike() {
         />
         <button
           class="btn secondary"
-          onClick={() => {
-            const p = lastPackaged.current;
-            if (!p) return setLog('קודם הריצו את הבדיקות האוטומטיות');
-            downloadBlob(p.blob, p.fileName);
-            add({ name: 'הורדת PDF (לחיצה על "הורד PDF")', ok: null, detail: 'הופעלה הורדה — יש לוודא ידנית שהקובץ נשמר ונפתח, והעברית קריאה' });
+          onClick={async () => {
+            const f = lastFiles.current;
+            if (!f) return setLog('קודם הריצו את הבדיקות האוטומטיות');
+            await downloadFiles(f);
+            add({ name: 'הורדת PDF (לחיצה על "הורד PDF")', ok: null, detail: 'הופעלה הורדה של PDF + קובץ שמע — יש לוודא ידנית ששניהם נשמרו, והעברית קריאה' });
           }}
         >
           הורד PDF
@@ -219,18 +211,19 @@ export function Spike() {
         <button
           class="btn secondary"
           onClick={async () => {
-            const p = lastPackaged.current;
-            if (!p) return setLog('קודם הריצו את הבדיקות האוטומטיות');
-            if (!canShareFile(p.blob, p.fileName, p.mime)) return add({ name: 'שיתוף בפועל (לחיצה על "בדוק שיתוף")', ok: false, detail: 'canShare=false → fallback להורדה' });
+            const f = lastFiles.current;
+            const name = 'שיתוף בפועל (לחיצה על "בדוק שיתוף")';
+            if (!f) return setLog('קודם הריצו את הבדיקות האוטומטיות');
+            if (!canShareFiles(f)) return add({ name, ok: false, detail: 'canShare=false → fallback להורדה' });
             try {
-              const ok = await shareFile(p.blob, p.fileName, p.mime, 'spike');
-              add({ name: 'שיתוף בפועל (לחיצה על "בדוק שיתוף")', ok: ok ? true : null, detail: ok ? 'נפתח חלון שיתוף' : 'בוטל על ידי המשתמש' });
+              const ok = await shareFiles(f, 'spike');
+              add({ name, ok: ok ? true : null, detail: ok ? 'נפתח חלון שיתוף עם PDF + שמע' : 'בוטל על ידי המשתמש' });
             } catch (err) {
-              add({ name: 'שיתוף בפועל (לחיצה על "בדוק שיתוף")', ok: false, detail: String(err) });
+              add({ name, ok: false, detail: String((err as Error).name) + ': ' + String(err) });
             }
           }}
         >
-          בדוק שיתוף
+          בדוק שיתוף (PDF + שמע)
         </button>
       </div>
       {log && <p class="hint">{log}</p>}

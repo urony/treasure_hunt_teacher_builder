@@ -1,5 +1,5 @@
-import { zipSync } from 'fflate';
 import { Game } from '../shared/types';
+import { safeFileName } from './ids';
 import { buildPdf, PdfPage } from './pdf';
 import { OUTCOME_TEXT, stationOutcome } from './status';
 import { BlobRec, mimeToExt, Progress } from './storage';
@@ -174,7 +174,7 @@ export async function buildReport(input: ReportInput): Promise<ReportResult> {
         if (sub?.audio) {
           const rec = await getBlob(sub.audio);
           if (rec) {
-            const name = `station-${String(i + 1).padStart(2, '0')}.${rec.ext || mimeToExt(rec.mime)}`;
+            const name = `${safeFileName(progress.studentName, 'תלמיד')} - הקלטה תחנה ${String(i + 1).padStart(2, '0')}.${rec.ext || mimeToExt(rec.mime)}`;
             audio.push({ name, blob: rec.blob });
             await w.text(`הקלטה מצורפת: ${name}`, 28, { color: COLORS.muted, gap: 4 });
           }
@@ -195,27 +195,16 @@ export async function buildReport(input: ReportInput): Promise<ReportResult> {
 
 const yieldToUi = () => new Promise<void>((r) => setTimeout(r, 0));
 
-export interface PackagedReport {
+export interface ReportFile {
+  name: string;
   blob: Blob;
-  fileName: string;
   mime: string;
-  isZip: boolean;
 }
 
-/** PDF בלבד אם אין הקלטות; אחרת ZIP עם report.pdf וקובצי הקול. */
-export async function packageReport(r: ReportResult, baseName: string): Promise<PackagedReport> {
-  if (r.audio.length === 0) {
-    return { blob: r.pdf, fileName: `${baseName}.pdf`, mime: 'application/pdf', isZip: false };
-  }
-  const files: Record<string, [Uint8Array, { level: 0 }]> = {
-    'report.pdf': [new Uint8Array(await r.pdf.arrayBuffer()), { level: 0 }],
-  };
-  for (const a of r.audio) files[a.name] = [new Uint8Array(await a.blob.arrayBuffer()), { level: 0 }];
-  const zipped = zipSync(files);
-  return {
-    blob: new Blob([zipped as BlobPart], { type: 'application/zip' }),
-    fileName: `${baseName}.zip`,
-    mime: 'application/zip',
-    isZip: true,
-  };
+/** הקבצים שנשלחים/נשמרים: ה-PDF, ואחריו קובצי ההקלטה (אם יש). בלי ZIP. התמונות כבר בתוך ה-PDF. */
+export function reportFiles(r: ReportResult, baseName: string): ReportFile[] {
+  return [
+    { name: `${baseName}.pdf`, blob: r.pdf, mime: 'application/pdf' },
+    ...r.audio.map((a) => ({ name: a.name, blob: a.blob, mime: a.blob.type || 'audio/mp4' })),
+  ];
 }
