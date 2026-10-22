@@ -114,6 +114,20 @@ export function Modal({ children }: { children: ComponentChildren }) {
   );
 }
 
+/** קישוט עדין וכללי: שביל מקווקו, סיכת מיקום וצעדים. לא נושאי. */
+export function TripDecor() {
+  return (
+    <svg class="trip" viewBox="0 0 120 40" aria-hidden="true" focusable="false">
+      <path d="M6 32 C 26 6, 52 38, 82 14" fill="none" stroke="#c9d0ff" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="1 7" />
+      <ellipse cx="22" cy="29" rx="3" ry="4.5" transform="rotate(-25 22 29)" fill="#dde2ff" />
+      <ellipse cx="38" cy="24" rx="3" ry="4.5" transform="rotate(20 38 24)" fill="#dde2ff" />
+      <ellipse cx="55" cy="26" rx="3" ry="4.5" transform="rotate(-20 55 26)" fill="#dde2ff" />
+      <path d="M96 4 c-5 0-9 4-9 9 0 7 9 15 9 15 s9-8 9-15 c0-5-4-9-9-9z" fill="#5664d8" opacity="0.85" />
+      <circle cx="96" cy="13" r="3.2" fill="#fff" />
+    </svg>
+  );
+}
+
 export function Credit() {
   return (
     <p class="credit">

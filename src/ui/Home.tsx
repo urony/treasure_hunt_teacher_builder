@@ -30,7 +30,7 @@ export function Home() {
 
   return (
     <main class="page home">
-      <div class="hero" aria-hidden="true">🗺️</div>
+      <div class="hero" aria-hidden="true">🧭</div>
       <h1 class="center-text">חפש את המטמון</h1>
       <p class="lead center-text">בנו בעצמכם משחק חפש את המטמון לטלפונים של התלמידים — בלי תכנות ובלי הרשמה.</p>
       <div class="stack">

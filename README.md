@@ -74,3 +74,5 @@ npm run smoke          # בדיקות עשן ל-API מול השרת הרץ
 ## פריסה אוטומטית
 
 Workers Builds מחובר ל-GitHub: כל push ל-`main` בונה (`npm run build`) ופורס (`npx wrangler deploy`) אוטומטית. הרשאת האפליקציה של Cloudflare ב-GitHub צריכה לכלול את המאגר הזה. אם פריסה לא מופיעה בלשונית Deployments, זו הסיבה הסבירה. לפני push מומלץ `npm test` ו-`npm run typecheck`.
+
+- **עיצוב:** "Soft Adventure" — אינדיגו `#5664D8` (ראשי), טורקיז `#20A58D` (השלמה וסיום), לבנדר `#DDE2FF`, כרטיסים לבנים מעוגלים, גופן Heebo מוגש מהאתר עצמו (`@fontsource-variable/heebo`, עברית+לטינית). כל ה-CSS ב-`src/styles.css` עם משתנים בראשו.

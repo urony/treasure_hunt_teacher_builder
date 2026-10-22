@@ -22,7 +22,7 @@ import {
 import { isCorrectAnswer } from '../shared/normalize';
 import { collectImageIds } from '../shared/validate';
 import { Game, LIMITS, Station } from '../shared/types';
-import { BlobImg, Credit, ExternalLink, Modal, navigate } from './common';
+import { BlobImg, Credit, ExternalLink, Modal, navigate, TripDecor } from './common';
 
 /* ========================================================================
  * מסלול /g/:id — טעינה, המשך מהמקום שעצרתי, או התחלה חדשה
@@ -166,7 +166,7 @@ export function PlayRoute({ gameId }: { gameId: string }) {
     const ok = name.trim().length > 0;
     return (
       <main class="page">
-        <div class="hero" aria-hidden="true">🗺️</div>
+        <div class="hero" aria-hidden="true">🧭</div>
         <h1 class="center-text">{stage.title}</h1>
         <InAppTip />
         <form
@@ -288,10 +288,14 @@ export function PlayGame({ game, initial, store, imageKey, preview, onClear }: P
 
   const header = (
     <header class="topbar">
-      <div>
-        <strong>🧭 {game.title}</strong>
+      <span class="compass" aria-hidden="true">
+        🧭
+      </span>
+      <div class="tb-text">
+        <strong>{game.title}</strong>
         <span class="who">{p.studentName}</span>
       </div>
+      <TripDecor />
     </header>
   );
 
@@ -334,7 +338,7 @@ export function PlayGame({ game, initial, store, imageKey, preview, onClear }: P
                 aria-label={`${s.name}${visited ? ', ביקרתי' : ''}${locked ? ', נעולה' : ''}`}
                 onClick={() => open(s.id)}
               >
-                <span class="chip-num">{locked ? '🔒' : visited ? '✓' : i + 1}</span>
+                <span class="chip-num">{locked ? '🔒' : visited && s.id !== p.currentStationId ? '✓' : i + 1}</span>
                 <span class={`chip-state ${out}`}>{out === 'full' ? 'הוגש' : out === 'missing' ? 'חסר תוצר' : out === 'partial' ? 'חלקי' : ''}</span>
               </button>
             );
@@ -395,7 +399,7 @@ export function PlayGame({ game, initial, store, imageKey, preview, onClear }: P
       </main>
       <footer class="footer-bar">
         <button class="btn finish" onClick={() => setConfirmFinish(true)}>
-          סיימתי
+          🏁 סיימתי את המשחק
         </button>
       </footer>
       {confirmFinish && (
@@ -455,7 +459,12 @@ function StationView(props: StationViewProps) {
   return (
     <div class="stack">
       <div class="card prose">
-        <h2>{st.name}</h2>
+        <h2>
+          <span class="station-ico" aria-hidden="true">
+            📍
+          </span>
+          {st.name}
+        </h2>
         {st.imageId && <BlobImg blobKey={imageKey(st.imageId)} getBlob={store.getBlob} />}
         <p class="pre">{st.content}</p>
         {st.link && <ExternalLink href={st.link}>פתיחת הקישור</ExternalLink>}
@@ -511,7 +520,7 @@ function CodeBox({ station, solved, onSolved }: { station: Station; solved: bool
   const [wrong, setWrong] = useState(false);
   return (
     <div class="card">
-      <h3>קוד מעבר</h3>
+      <h3>🔑 קוד מעבר</h3>
       {code.prompt && <p class="pre">{code.prompt}</p>}
       {solved ? (
         <>
@@ -867,7 +876,7 @@ function FinishView({ game, progress, store, preview, onBack, onClear }: { game:
       </p>
       {preview && <p class="banner warn">זו תצוגה מקדימה — הדוח נוצר כמו אצל תלמיד, אבל שום דבר לא נשמר.</p>}
       <InAppTip />
-      <div class="card">
+      <div class="card finish-card">
         {!result && (
           <button class="btn primary big" disabled={!!msg} onClick={generate}>
             הפקת דוח
@@ -880,7 +889,7 @@ function FinishView({ game, progress, store, preview, onBack, onClear }: { game:
             <p class="banner ok">
               הדוח מוכן: קובץ PDF{result.length > 1 ? ` ו-${result.length - 1} הקלטות` : ''} ({(result.reduce((n, f) => n + f.blob.size, 0) / 1024 / 1024).toFixed(1)}MB)
             </p>
-            <h3>שיתוף — כל חלק בנפרד</h3>
+            {canShareFiles([result[0]]) && <h3>שיתוף — כל חלק בנפרד</h3>}
             <ShareButton
               label="הדוח (PDF)"
               files={[result[0]]}
@@ -915,9 +924,9 @@ function FinishView({ game, progress, store, preview, onBack, onClear }: { game:
                   onError={setErr}
                 />
               ))}
-            <h3>או שמירה במכשיר</h3>
+            <h3>{canShareFiles([result[0]]) ? 'או שמירה במכשיר' : 'שמירה במכשיר'}</h3>
             <button
-              class="btn secondary big"
+              class={`btn big ${canShareFiles([result[0]]) ? 'secondary' : ''}`}
               onClick={async () => {
                 await downloadFiles(result);
                 markShared('saved');
