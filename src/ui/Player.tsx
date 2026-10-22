@@ -803,26 +803,51 @@ function AudioInput({ store, audioKey, onSave, onRemove }: { store: PlayStore; a
  * סיום והפקת דוח
  * ====================================================================== */
 
+/** כפתור שיתוף לקבוצת קבצים. כל לחיצה היא שיתוף נפרד (נדרש מגע חדש לכל חלון שיתוף). */
+function ShareButton({ label, files, title, done, onDone, onError }: { label: string; files: ReportFile[]; title: string; done: boolean; onDone: () => void; onError: (m: string) => void }) {
+  if (!canShareFiles(files)) return null;
+  return (
+    <button
+      class={`btn big ${done ? 'secondary' : 'primary'}`}
+      onClick={async () => {
+        try {
+          if (await shareFiles(files, title)) onDone();
+        } catch (e) {
+          onError(`השיתוף של ${label} לא הצליח (${(e as Error).name}). אפשר לשמור את הקבצים במכשיר ולשלוח אותם ידנית.`);
+        }
+      }}
+    >
+      {done ? '✓ ' : '↗ '}שיתוף {label}
+    </button>
+  );
+}
+
 function FinishView({ game, progress, store, preview, onBack, onClear }: { game: Game; progress: Progress; store: PlayStore; preview?: boolean; onBack: () => void; onClear?: () => void }) {
   const [msg, setMsg] = useState<string>();
   const [result, setResult] = useState<ReportFile[]>();
   const [err, setErr] = useState<string>();
   const [saved, setSaved] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
-  const [canShare, setCanShare] = useState(false);
-  const [shareFailed, setShareFailed] = useState(false);
+  const [shared, setShared] = useState<string[]>([]);
+  const [audioEach, setAudioEach] = useState(false);
+  const markShared = (k: string) => {
+    setShared((x) => [...new Set([...x, k])]);
+    setSaved(true);
+    setErr(undefined);
+  };
 
   async function generate() {
     setErr(undefined);
     setResult(undefined);
     setSaved(false);
+    setShared([]);
+    setAudioEach(false);
     try {
       setMsg('מכינים את הדוח…');
       const r = await buildReport({ game, progress, getBlob: store.getBlob, onProgress: setMsg });
       const base = `דוח ${safeFileName(game.title, 'משחק')} - ${safeFileName(progress.studentName, 'תלמיד')}`;
       const files = reportFiles(r, base);
       setResult(files);
-      setCanShare(canShareFiles(files));
     } catch (e) {
       console.error(e);
       setErr('לא הצלחנו להפיק את הדוח (ייתכן שאין מספיק זיכרון בטלפון). נסו לסגור לשוניות אחרות ולהפיק שוב.');
@@ -855,48 +880,54 @@ function FinishView({ game, progress, store, preview, onBack, onClear }: { game:
             <p class="banner ok">
               הדוח מוכן: קובץ PDF{result.length > 1 ? ` ו-${result.length - 1} הקלטות` : ''} ({(result.reduce((n, f) => n + f.blob.size, 0) / 1024 / 1024).toFixed(1)}MB)
             </p>
-            {canShare && (
-              <button
-                class="btn primary big"
-                onClick={async () => {
-                  setErr(undefined);
-                  try {
-                    if (await shareFiles(result, game.title)) setSaved(true);
-                  } catch (e) {
-                    setShareFailed(true);
-                    setErr(`השיתוף לא הצליח (${(e as Error).name}). אפשר לשתף את ה-PDF לבד, או לשמור את הקבצים במכשיר ולשלוח אותם ידנית.`);
-                  }
+            <h3>שיתוף — כל חלק בנפרד</h3>
+            <ShareButton
+              label="הדוח (PDF)"
+              files={[result[0]]}
+              title={game.title}
+              done={shared.includes('pdf')}
+              onDone={() => markShared('pdf')}
+              onError={setErr}
+            />
+            {result.length > 1 && !audioEach && (
+              <ShareButton
+                label={`ההקלטות (${result.length - 1})`}
+                files={result.slice(1)}
+                title={game.title}
+                done={shared.includes('audio')}
+                onDone={() => markShared('audio')}
+                onError={(m) => {
+                  setErr(m);
+                  setAudioEach(true);
                 }}
-              >
-                ↗ שיתוף
-              </button>
+              />
             )}
-            {shareFailed && result.length > 1 && (
-              <button
-                class="btn secondary big"
-                onClick={async () => {
-                  try {
-                    if (await shareFiles([result[0]], game.title)) setSaved(true);
-                  } catch (e) {
-                    setErr(`גם שיתוף ה-PDF לבד לא הצליח (${(e as Error).name}). אפשר לשמור את הקבצים במכשיר.`);
-                  }
-                }}
-              >
-                ↗ שיתוף ה-PDF בלבד
-              </button>
-            )}
+            {result.length > 1 &&
+              audioEach &&
+              result.slice(1).map((f) => (
+                <ShareButton
+                  key={f.name}
+                  label={f.name.replace(/.[a-z0-9]+$/i, '')}
+                  files={[f]}
+                  title={game.title}
+                  done={shared.includes(f.name)}
+                  onDone={() => markShared(f.name)}
+                  onError={setErr}
+                />
+              ))}
+            <h3>או שמירה במכשיר</h3>
             <button
-              class={`btn big ${canShare ? 'secondary' : 'primary'}`}
+              class="btn secondary big"
               onClick={async () => {
                 await downloadFiles(result);
-                setSaved(true);
+                markShared('saved');
               }}
             >
-              ⬇ שמירה במכשיר
+              ⬇ שמירת כל הקבצים
             </button>
             <p class="hint">
-              {canShare
-                ? 'אפשר לשתף ישירות (למשל לוואטסאפ) את הדוח וההקלטות, או לשמור ולשלוח אחר כך.'
+              {canShareFiles([result[0]])
+                ? 'שלחו את הדוח ואת ההקלטות בנפרד, למשל לוואטסאפ של המורה. אם משהו לא נשלח, שמרו את הקבצים ושלחו אותם ידנית מהמכשיר (סמל המהדק ← מסמך).'
                 : 'הדפדפן הזה לא תומך בשיתוף קבצים. שמרו את הקבצים, ואז שלחו אותם למורה בוואטסאפ כמסמך (סמל המהדק ← מסמך) או במייל.'}{' '}
               {result.length > 1 && 'בשמירה ייתכן שהדפדפן ישאל אם לאפשר הורדת כמה קבצים — אשרו. '}
               אם ההורדה לא מתחילה, פתחו את הקישור ב-Chrome או ב-Safari.
@@ -936,6 +967,7 @@ function FinishView({ game, progress, store, preview, onBack, onClear }: { game:
         </Modal>
       )}
       <p class="hint privacy">הצילומים וההקלטות נשמרו רק בטלפון שלכם. שתפו אותם רק לפי הנחיות המורה.</p>
+      <Credit />
     </main>
   );
 }

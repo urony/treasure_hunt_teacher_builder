@@ -115,5 +115,11 @@ export function Modal({ children }: { children: ComponentChildren }) {
 }
 
 export function Credit() {
-  return <p class="credit">נוצר על ידי ד״ר אורי העליון</p>;
+  return (
+    <p class="credit">
+      נוצר על ידי ד״ר אורי העליון
+      <br />
+      <small class="build">גרסה {typeof __BUILD__ === 'string' ? __BUILD__ : 'dev'}</small>
+    </p>
+  );
 }
