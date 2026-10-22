@@ -618,7 +618,11 @@ function StationCard({ station: s, index, total, open, onToggle, onChange, onMov
                   <small class="hint">לא משנה אותיות גדולות/קטנות באנגלית, ניקוד, או רווחים מיותרים. אין התאמה לפי משמעות.</small>
                 </label>
                 <label class="field">
-                  <span>טקסט או רמז שיוצג אחרי תשובה נכונה (לא חובה)</span>
+                  <span>רמז שיוצג אם התלמיד טעה (לא חובה)</span>
+                  <textarea rows={2} value={s.code.hint ?? ''} onInput={(e) => setCode({ hint: (e.target as HTMLTextAreaElement).value })} />
+                </label>
+                <label class="field">
+                  <span>הודעה שתוצג אחרי תשובה נכונה (לא חובה)</span>
                   <textarea rows={2} value={s.code.reveal} onInput={(e) => setCode({ reveal: (e.target as HTMLTextAreaElement).value })} />
                 </label>
               </div>

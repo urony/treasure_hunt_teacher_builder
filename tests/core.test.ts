@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { encodeWav } from '../src/lib/audio';
 import { exportGameZip, importGameZip } from '../src/lib/gamezip';
 import { buildPdf } from '../src/lib/pdf';
 import { stationOutcome } from '../src/lib/status';
@@ -122,5 +123,37 @@ describe('ייצוא/ייבוא משחק', () => {
   });
   it('דוחה קובץ שאינו משחק', async () => {
     await expect(importGameZip(new Blob(['not a zip']))).rejects.toThrow();
+  });
+});
+
+describe('encodeWav', () => {
+  it('יוצר כותרת WAV תקינה', async () => {
+    const samples = new Float32Array(16000).fill(0.5);
+    const blob = encodeWav(samples, 16000);
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    const txt = (a: number, b: number) => new TextDecoder().decode(bytes.slice(a, b));
+    expect(txt(0, 4)).toBe('RIFF');
+    expect(txt(8, 12)).toBe('WAVE');
+    expect(txt(36, 40)).toBe('data');
+    expect(bytes.length).toBe(44 + 16000 * 2);
+    const v = new DataView(bytes.buffer);
+    expect(v.getUint32(24, true)).toBe(16000); // קצב דגימה
+    expect(v.getUint16(22, true)).toBe(1); // מונו
+    expect(v.getInt16(44, true)).toBeGreaterThan(16000); // 0.5 -> ~16383
+  });
+  it('חותך ערכים חריגים', async () => {
+    const bytes = new Uint8Array(await encodeWav(new Float32Array([2, -2]), 8000).arrayBuffer());
+    const v = new DataView(bytes.buffer);
+    expect(v.getInt16(44, true)).toBe(32767);
+    expect(v.getInt16(46, true)).toBe(-32768);
+  });
+});
+
+describe('רמז אחרי טעות', () => {
+  it('נשמר ב-cleanGame ומאומת באורך', () => {
+    const g = cleanGame(game({ stations: [station({ code: { prompt: '', answers: ['5'], reveal: '', hint: '  חשבו שוב  ' } })] }));
+    expect(g.stations[0].code?.hint).toBe('חשבו שוב');
+    const bad = game({ stations: [station({ code: { prompt: '', answers: ['5'], reveal: '', hint: 'x'.repeat(5000) } })] });
+    expect(validateGame(bad).length).toBe(1);
   });
 });

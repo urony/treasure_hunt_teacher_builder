@@ -1,5 +1,6 @@
 import { useRef, useState } from 'preact/hooks';
 import { idbDel, idbGet, idbPut, requestPersistence } from '../lib/idb';
+import { toWav } from '../lib/audio';
 import { compressImage } from '../lib/image';
 import { buildReport, reportFiles } from '../lib/report';
 import { canShareFiles, downloadFiles, looksLikeInAppBrowser, OutFile, shareFiles } from '../lib/share';
@@ -133,6 +134,30 @@ export function Spike() {
 
     // יכולות דפדפן
     add({ name: 'MediaRecorder', ok: typeof MediaRecorder !== 'undefined', detail: typeof MediaRecorder !== 'undefined' ? ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'].map((m) => `${m}:${MediaRecorder.isTypeSupported(m)}`).join(' ') : 'לא קיים' });
+    // המרת הקלטה ל-WAV: מקליטים שנייה של צליל סינתטי (בלי מיקרופון) ומוודאים שיוצא WAV תקין
+    try {
+      const ac = new AudioContext();
+      const osc = ac.createOscillator();
+      const dest = ac.createMediaStreamDestination();
+      osc.connect(dest);
+      osc.start();
+      const mime = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'].find((m) => MediaRecorder.isTypeSupported(m))!;
+      const rec = new MediaRecorder(dest.stream, { mimeType: mime });
+      const chunks: BlobPart[] = [];
+      rec.ondataavailable = (e) => chunks.push(e.data);
+      const stopped = new Promise<void>((r) => (rec.onstop = () => r()));
+      rec.start();
+      await new Promise((r) => setTimeout(r, 1200));
+      rec.stop();
+      await stopped;
+      osc.stop();
+      void ac.close();
+      const wav = await toWav(new Blob(chunks, { type: mime.split(';')[0] }));
+      const head = new TextDecoder().decode(new Uint8Array(await wav.slice(0, 12).arrayBuffer()));
+      add({ name: 'המרת הקלטה ל-WAV', ok: head.startsWith('RIFF') && head.endsWith('WAVE') && wav.size > 10000, detail: `מ-${mime} ל-WAV, ${(wav.size / 1024) | 0}KB (כ-${(wav.size / 32000).toFixed(1)} שנ׳)` });
+    } catch (e) {
+      add({ name: 'המרת הקלטה ל-WAV', ok: false, detail: String(e) });
+    }
     const f = new File([new Blob(['x'])], 'x.pdf', { type: 'application/pdf' });
     add({ name: 'Web Share עם קבצים (canShare)', ok: null, detail: `PDF: ${String(navigator.canShare?.({ files: [f] }) ?? 'לא נתמך')}; PDF+שמע: ${String(lastFiles.current ? canShareFiles(lastFiles.current) : 'לא נבדק')} (לא נתמך = fallback להורדה, תקין)` });
 

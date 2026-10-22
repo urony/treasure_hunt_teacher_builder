@@ -7,8 +7,10 @@ export interface PassCode {
   prompt: string;
   /** תשובות מתקבלות */
   answers: string[];
-  /** טקסט/רמז שנחשף בהצלחה (אופציונלי) */
+  /** הודעה שמוצגת אחרי תשובה נכונה (אופציונלי) */
   reveal: string;
+  /** רמז שמוצג אחרי תשובה שגויה (אופציונלי) */
+  hint?: string;
 }
 
 export interface Station {

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { fetchGame, fetchImage } from '../lib/api';
 import { describeStorageError, requestPersistence } from '../lib/idb';
 import { uid, safeFileName } from '../lib/ids';
+import { toWav } from '../lib/audio';
 import { compressImage } from '../lib/image';
 import { buildReport, reportFiles, ReportFile } from '../lib/report';
 import { canShareFiles, downloadFiles, looksLikeInAppBrowser, shareFiles } from '../lib/share';
@@ -534,7 +535,12 @@ function CodeBox({ station, solved, onSolved }: { station: Station; solved: bool
           <button class="btn primary" type="submit">
             בדיקה
           </button>
-          {wrong && <p class="banner warn">עדיין לא, נסו שוב.</p>}
+          {wrong && (
+            <div class="banner warn">
+              <p>עדיין לא, נסו שוב.</p>
+              {code.hint && <p class="pre"><strong>רמז:</strong> {code.hint}</p>}
+            </div>
+          )}
         </form>
       )}
     </div>
@@ -675,6 +681,7 @@ function AudioInput({ store, audioKey, onSave, onRemove }: { store: PlayStore; a
   const [err, setErr] = useState<string>();
   const [url, setUrl] = useState<string>();
   const [playNote, setPlayNote] = useState(false);
+  const [converting, setConverting] = useState(false);
   const recRef = useRef<MediaRecorder | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const canRecord = !!pickAudioMime() && !!navigator.mediaDevices?.getUserMedia;
@@ -700,6 +707,19 @@ function AudioInput({ store, audioKey, onSave, onRemove }: { store: PlayStore; a
 
   useEffect(() => () => recRef.current?.state === 'recording' && recRef.current.stop(), []);
 
+  /** ממיר ל-WAV כדי שהקובץ יתנגן וישותף בכל מכשיר (כולל וואטסאפ). אם ההמרה נכשלת — שומרים את המקור. */
+  async function finish(raw: Blob, mime: string) {
+    setConverting(true);
+    try {
+      onSave({ blob: await toWav(raw), mime: 'audio/wav', ext: 'wav' });
+    } catch {
+      setErr('לא הצלחנו להמיר את ההקלטה לפורמט שמתאים לשיתוף. היא נשמרה כמות שהיא, וייתכן שוואטסאפ לא יצליח לנגן אותה.');
+      onSave({ blob: raw, mime, ext: mimeToExt(mime) });
+    } finally {
+      setConverting(false);
+    }
+  }
+
   async function startRec() {
     setErr(undefined);
     const mime = pickAudioMime()!;
@@ -720,7 +740,7 @@ function AudioInput({ store, audioKey, onSave, onRemove }: { store: PlayStore; a
       setRecording(false);
       const base = mime.split(';')[0];
       const blob = new Blob(chunks, { type: base });
-      if (blob.size > 0) onSave({ blob, mime: base, ext: mimeToExt(base) });
+      if (blob.size > 0) void finish(blob, base);
       else setErr('ההקלטה יצאה ריקה. נסו שוב.');
     };
     let s = 0;
@@ -738,8 +758,8 @@ function AudioInput({ store, audioKey, onSave, onRemove }: { store: PlayStore; a
     if (!f) return;
     if (f.size > 15 * 1024 * 1024) return setErr('קובץ הקול גדול מדי (עד 15MB).');
     if (!f.type.startsWith('audio/') && !f.type.startsWith('video/')) return setErr('בחרו קובץ קול.');
-    const mime = f.type || 'audio/mp4';
-    onSave({ blob: f, mime, ext: mimeToExt(mime) });
+    setErr(undefined);
+    await finish(f, f.type || 'audio/mp4');
   }
 
   return (
@@ -750,6 +770,7 @@ function AudioInput({ store, audioKey, onSave, onRemove }: { store: PlayStore; a
           {playNote && <p class="hint">ייתכן שהקובץ לא יתנגן בטלפון הזה, אבל הוא ישמר וישלח עם הדוח.</p>}
         </>
       )}
+      {converting && <p class="hint">מעבדים את ההקלטה…</p>}
       {recording ? (
         <button class="btn danger big" onClick={() => recRef.current?.stop()}>
           ⏹ עצירה ({secs} שנ׳)
@@ -789,6 +810,7 @@ function FinishView({ game, progress, store, preview, onBack, onClear }: { game:
   const [saved, setSaved] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
   const [canShare, setCanShare] = useState(false);
+  const [shareFailed, setShareFailed] = useState(false);
 
   async function generate() {
     setErr(undefined);
@@ -841,11 +863,26 @@ function FinishView({ game, progress, store, preview, onBack, onClear }: { game:
                   try {
                     if (await shareFiles(result, game.title)) setSaved(true);
                   } catch (e) {
-                    setErr(`השיתוף לא הצליח (${(e as Error).name}). אפשר לשמור את הקבצים במכשיר ולשלוח אותם ידנית.`);
+                    setShareFailed(true);
+                    setErr(`השיתוף לא הצליח (${(e as Error).name}). אפשר לשתף את ה-PDF לבד, או לשמור את הקבצים במכשיר ולשלוח אותם ידנית.`);
                   }
                 }}
               >
                 ↗ שיתוף
+              </button>
+            )}
+            {shareFailed && result.length > 1 && (
+              <button
+                class="btn secondary big"
+                onClick={async () => {
+                  try {
+                    if (await shareFiles([result[0]], game.title)) setSaved(true);
+                  } catch (e) {
+                    setErr(`גם שיתוף ה-PDF לבד לא הצליח (${(e as Error).name}). אפשר לשמור את הקבצים במכשיר.`);
+                  }
+                }}
+              >
+                ↗ שיתוף ה-PDF בלבד
               </button>
             )}
             <button

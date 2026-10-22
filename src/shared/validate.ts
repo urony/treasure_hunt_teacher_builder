@@ -75,7 +75,8 @@ export function validateGame(g: unknown): string[] {
         errs.push(`${where}: יותר מדי תשובות או תשובה ארוכה מדי.`);
       }
       if (typeof c.prompt !== 'string' || c.prompt.length > LIMITS.text) errs.push(`${where}: שאלת הקוד ארוכה מדי.`);
-      if (typeof c.reveal !== 'string' || c.reveal.length > LIMITS.text) errs.push(`${where}: הרמז ארוך מדי.`);
+      if (typeof c.reveal !== 'string' || c.reveal.length > LIMITS.text) errs.push(`${where}: ההודעה אחרי תשובה נכונה ארוכה מדי.`);
+      if (c.hint !== undefined && (typeof c.hint !== 'string' || c.hint.length > LIMITS.text)) errs.push(`${where}: הרמז ארוך מדי.`);
     }
   });
   return errs;
@@ -104,7 +105,7 @@ export function cleanGame(game: Game): Game {
       link: trimOpt(s.link),
       submit: { text: !!s.submit.text, photo: !!s.submit.photo, audio: !!s.submit.audio },
       code: s.code
-        ? { prompt: s.code.prompt, answers: s.code.answers.map((a) => a.trim()).filter(Boolean), reveal: s.code.reveal }
+        ? { prompt: s.code.prompt, answers: s.code.answers.map((a) => a.trim()).filter(Boolean), reveal: s.code.reveal, hint: trimOpt(s.code.hint) }
         : undefined,
     })),
   };
